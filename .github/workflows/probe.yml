@@ -1,0 +1,25 @@
+name: probe-sources
+
+# Manual diagnostic: which stores/feeds can be read from GitHub's runners (the monitor's real IPs)?
+on:
+  workflow_dispatch:
+    inputs:
+      names:
+        description: "Optional space-separated candidate names (empty = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet httpx
+      - run: python tools/probe_sources.py ${{ inputs.names }}
