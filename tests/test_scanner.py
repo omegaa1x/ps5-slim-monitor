@@ -42,7 +42,7 @@ class World:
                     offers.append(o)
                 return SourceResult(src, True, offers)
             return fetch
-        return {"game": make("game"), "mediamarkt": make("mediamarkt")}
+        return {src: make(src) for src in self.offers}
 
 
 def run(settings: Settings, storage: Storage, world: World, now: datetime) -> Any:

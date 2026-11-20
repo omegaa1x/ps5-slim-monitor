@@ -10,9 +10,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from ps5monitor import commands
-from ps5monitor.config import Settings
+from ps5monitor.config import SOURCES, Settings
 from ps5monitor.models import Decision, Offer, SourceResult, Status, Stock
-from ps5monitor.normalization import fmt_eur
+from ps5monitor.normalization import fmt_eur, fold
 from ps5monitor.notifier import (
     AlertContext,
     Telegram,
@@ -24,7 +24,7 @@ from ps5monitor.notifier import (
 )
 from ps5monitor.rules import decide_alert, evaluate
 from ps5monitor.schedule import PEAK, fmt_local, interval_for, is_due, local, mode_at, next_transition
-from ps5monitor.sources import base, chollometro, game, mediamarkt
+from ps5monitor.sources import base, chollometro, deal_feeds, eci, game, mediamarkt
 from ps5monitor.storage import Storage
 
 log = logging.getLogger(__name__)
@@ -33,7 +33,11 @@ Adapter = Callable[[base.Fetcher, datetime, Decimal, Settings], SourceResult]
 
 ADAPTERS: dict[str, Adapter] = {
     "chollometro": lambda f, now, mx, s: chollometro.fetch(f, now),
-    "game": lambda f, now, mx, s: game.fetch(f, now, mx, s.game_shipping_eur),
+    "blogdechollos": lambda f, now, mx, s: deal_feeds.fetch("blogdechollos", f, now),
+    "ofertitas": lambda f, now, mx, s: deal_feeds.fetch("ofertitas", f, now),
+    "game": lambda f, now, mx, s: game.fetch(f, now, mx, s.shipping_for("game")),
+    "elcorteingles": lambda f, now, mx, s: eci.fetch("elcorteingles", f, now, mx, s.shipping_for("elcorteingles")),
+    "hipercor": lambda f, now, mx, s: eci.fetch("hipercor", f, now, mx, s.shipping_for("hipercor")),
     "mediamarkt": lambda f, now, mx, s: mediamarkt.fetch(f, now, mx),
 }
 
@@ -107,17 +111,23 @@ def _update_health(storage: Storage, settings: Settings, src: str, now: datetime
     storage.save_health(h)
 
 
-def _recent_verified_alert(storage: Storage, retailer: str, total: Decimal, now: datetime) -> bool:
-    row = storage.conn.execute(
-        """SELECT 1 FROM sent_alerts s JOIN listings l ON l.listing_id = s.listing_id
-        WHERE l.source != 'chollometro' AND lower(l.retailer) = lower(?) AND s.total = ? AND s.ts >= ?""",
-        (retailer, f"{total:.2f}", (now - timedelta(hours=24)).isoformat(timespec="seconds")),
-    ).fetchone()
-    return row is not None
+def _retailer_key(name: str) -> str:
+    return fold(name).replace(" ", "")
+
+
+def _already_reported(storage: Storage, offer: Offer, price: Decimal, now: datetime) -> bool:
+    """Same deal (retailer + price) already alerted in the last 24 h by another listing/source."""
+    rows = storage.conn.execute(
+        """SELECT l.retailer FROM sent_alerts s JOIN listings l ON l.listing_id = s.listing_id
+        WHERE s.total = ? AND s.ts >= ? AND s.listing_id != ?""",
+        (f"{price:.2f}", (now - timedelta(hours=24)).isoformat(timespec="seconds"), offer.listing_id),
+    ).fetchall()
+    return any(_retailer_key(r["retailer"]) == _retailer_key(offer.retailer) for r in rows)
 
 
 def _process_offers(storage: Storage, settings: Settings, offers: list[Offer], max_total: Decimal,
-                    now: datetime) -> list[Candidate]:
+                    now: datetime, seen_unverified: set[tuple[str, str]] | None = None) -> list[Candidate]:
+    seen = seen_unverified if seen_unverified is not None else set()
     candidates: list[Candidate] = []
     global_lowest = storage.global_lowest_alerted()
     for offer in offers:
@@ -133,8 +143,10 @@ def _process_offers(storage: Storage, settings: Settings, offers: list[Offer], m
             continue
         price = decision.total if decision.total is not None else offer.item_price
         assert price is not None
-        if offer.source == "chollometro" and _recent_verified_alert(storage, offer.retailer, price, now):
-            continue
+        key = (_retailer_key(offer.retailer), f"{price:.2f}")
+        if not offer.verified_source and (key in seen or _already_reported(storage, offer, price, now)):
+            continue  # the same deal was already reported (verified sources run first)
+        seen.add(key)
         state = storage.alert_state(offer.listing_id)
         ad = decide_alert(state, price, now, drop_step=settings.price_drop_step_eur, global_lowest=global_lowest)
         if not ad.send:
@@ -235,8 +247,10 @@ def run_once(settings: Settings, storage: Storage, *, client: base.httpx.Client 
     client = client or base.make_client(settings.user_agent, settings.http_timeout_s)
     fetcher = base.Fetcher(client, cache)
     candidates: list[Candidate] = []
+    seen_deals: set[tuple[str, str]] = set()
+    order = {s: i for i, s in enumerate(SOURCES)}
     try:
-        for src in settings.enabled_sources:
+        for src in sorted(settings.enabled_sources, key=lambda s: order.get(s, 99)):
             h = storage.health(src)
             if not first_run and not is_due(src, h.last_attempt, h.backoff_until, now, settings):
                 continue
@@ -255,7 +269,7 @@ def run_once(settings: Settings, storage: Storage, *, client: base.httpx.Client 
                 continue
             report.ran.append(src)
             _update_health(storage, settings, src, now, mode, result, None)
-            candidates.extend(_process_offers(storage, settings, result.offers, max_total, now))
+            candidates.extend(_process_offers(storage, settings, result.offers, max_total, now, seen_deals))
     finally:
         if own_client:
             client.close()

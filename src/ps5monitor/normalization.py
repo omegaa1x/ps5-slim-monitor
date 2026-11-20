@@ -148,9 +148,14 @@ def classify(title: str) -> Match:
     is_ps5 = bool(re.search(r"\bps5\b|playstation ?5\b|playstation5", t))
     if not is_ps5:
         return Match(Variant.OTHER, False, False, condition, ["no es PS5"])
-    has_console = bool(re.search(_CONSOLE_HINT, t))
+    # "PACK PlayStation 5 + juego", "PlayStation 5 digital + 2 mandos": the console name (plus edition words)
+    # is immediately followed by '+', so it is a console bundle, not an accessory.
+    console_bundle = bool(re.match(
+        r"^(?:pack |consola )?(?:playstation ?5|ps5)(?: (?:slim|digital|edicion \w+|estandar|standard|"
+        r"\d+ ?(?:tb|gb)|chasis \w|chassis \w|,))* ?\+", t))
+    has_console = bool(re.search(_CONSOLE_HINT, t)) or console_bundle
     for_console = bool(re.search(r"\baccesorio|para (?:la |tu |tus )?(?:consolas?|ps5|playstation)|compatible con", t))
-    is_console_product = bool(re.search(r"\bconsola\b", t)) and not for_console
+    is_console_product = (bool(re.search(r"\bconsola\b", t)) or console_bundle) and not for_console
     if for_console or (re.search(_ACCESSORY, t) and not (
             is_console_product or (re.search(_BUNDLE, t) and has_console))):
         return Match(Variant.ACCESSORY, False, False, condition, ["accesorio/juego, no consola"])

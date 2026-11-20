@@ -55,6 +55,10 @@ def test_unknown_shipping_is_never_claimed_as_within_limit() -> None:
     ("Accesorio PS5 - Sony Soporte vertical para consolas PS5", Variant.ACCESSORY, False),
     ("Unidad de disco para PS5 Digital Slim", Variant.ACCESSORY, False),
     ("Mando DualSense PS5 Slim edición blanca", Variant.ACCESSORY, False),
+    ("PS5 Mando + cable de carga", Variant.ACCESSORY, False),
+    ("PlayStation 5 + 2 mandos DualSense", Variant.SLIM_DISC, False),
+    ("PlayStation 5 digital + 2 mandos DualSense", Variant.SLIM_DIGITAL, False),
+    ("PACK PlayStation 5 + Marvel Lobezno PS5", Variant.SLIM_DISC, False),
 ])
 def test_classify(title: str, variant: Variant, confirmed: bool) -> None:
     m = classify(title)

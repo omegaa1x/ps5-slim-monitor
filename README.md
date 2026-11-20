@@ -12,13 +12,19 @@ Comprueba tiendas españolas 24/7 desde GitHub Actions (sin tu PC) y te avisa po
   repetir avisos.
 
 ## Fuentes y fiabilidad
+Comprobado desde los servidores de GitHub el 20/11/2026 (`tools/probe_sources.py`, workflow `probe-sources`).
+
 | Fuente | Método | Estado |
 |---|---|---|
-| Chollometro | RSS oficial `/rss/nuevos` | Cubre todas las tiendas (Amazon, El Corte Inglés, Fnac…). Precios publicados por usuarios → avisos **⚠️ SIN VERIFICAR** |
-| GAME | Listado público + schema.org de la ficha (precio, stock, estado, vendedor) | Verificado. Envío: si la ficha no lo indica → "no confirmado" (configurable con `GAME_SHIPPING_EUR`) |
-| MediaMarkt | Búsqueda pública + schema.org de la ficha (precio, stock, vendedor, envío) | Verificado. Solo vendedor MediaMarkt (marketplace excluido) |
-| Amazon.es | — | No soportada directamente (Condiciones de Uso prohíben robots; API de afiliados requiere aprobación). Solo vía Chollometro |
-| PcComponentes, Carrefour, El Corte Inglés, Fnac | — | Bloqueo anti-bot (403). No se elude. Solo vía Chollometro |
+| GAME | Listado público + schema.org de la ficha | ✅ Verificado. Envío no indicado → "no confirmado" (`SHIPPING_EUR_GAME`) |
+| El Corte Inglés | Categoría PS5 (lista con precio/estado) + schema.org de la ficha | ✅ Verificado. Solo vendedor El Corte Inglés |
+| Hipercor | Igual que El Corte Inglés | ✅ Verificado |
+| MediaMarkt | Búsqueda + schema.org de la ficha | ⚠️ Funciona desde casa, pero bloquea (403) las IPs de GitHub; se reintenta |
+| Chollometro, Blogdechollos, Ofertitas | RSS oficiales | ✅ Cubren Amazon, Carrefour, PcComponentes, Fnac… → avisos **⚠️ SIN VERIFICAR** |
+| Amazon, Carrefour, PcComponentes, Fnac, Worten, Toys"R"Us | — | Bloqueo anti-bot/robots. No se elude. Solo vía webs de chollos |
+| Xtralife, Alcampo, Lidl, Coolmod | — | Precios cargados con JavaScript (sin datos legibles) |
+
+Una misma oferta publicada en varias webs de chollos (o ya avisada por la tienda) solo se avisa una vez.
 
 `python -m ps5monitor sources` muestra esta tabla.
 

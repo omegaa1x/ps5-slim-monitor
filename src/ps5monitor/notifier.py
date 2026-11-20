@@ -21,6 +21,7 @@ from ps5monitor.schedule import fmt_local
 
 log = logging.getLogger(__name__)
 API = "https://api.telegram.org"
+SOURCE_NAMES = {"chollometro": "Chollometro", "blogdechollos": "Blogdechollos", "ofertitas": "Ofertitas"}
 MAX_LEN = 3900  # Telegram hard limit is 4096 characters
 
 
@@ -167,8 +168,9 @@ def format_alert(offer: Offer, decision: Decision, ctx: AlertContext, settings: 
     lines.append(esc(KIND_LINE.get(ctx.kind, ctx.kind)))
     lines.append(f"🎮 Versión: {esc(variant_label(offer.variant, offer.is_bundle, offer.bundle_note))}")
     lines.append(f"📝 {esc(offer.title[:180])}")
-    if offer.source == "chollometro":
-        lines.append(f"🏬 Tienda indicada: {esc(offer.retailer)} · Fuente: Chollometro (publicado por usuarios)")
+    if not offer.verified_source:
+        lines.append(f"🏬 Tienda indicada: {esc(offer.retailer)} · Fuente: "
+                     f"{esc(SOURCE_NAMES.get(offer.source, offer.source))} (web de chollos)")
     else:
         lines.append(f"🏬 Tienda: {esc(offer.retailer)} · Vendedor: {esc(offer.seller or 'no indicado')}")
     price_label = "Precio artículo" if verified else "Precio publicado"
@@ -214,7 +216,7 @@ def format_summary(entries: list[tuple[Offer, Decision]], settings: Settings, ma
     for i, (o, d) in enumerate(sorted(entries, key=key), 1):
         tag = "✅" if d.status == Status.ELIGIBLE else "⚠️ sin verificar"
         amount = fmt_eur(d.total) if d.total is not None else f"{fmt_eur(o.item_price)} + envío ?"
-        where = o.retailer if o.source != "chollometro" else f"{o.retailer} (Chollometro)"
+        where = o.retailer if o.verified_source else f"{o.retailer} ({SOURCE_NAMES.get(o.source, o.source)})"
         v = VARIANT_LABEL.get(o.variant, o.variant.value).split(" (")[0] + (" · PACK" if o.is_bundle else "")
         lines.append(f'{i}. <b>{esc(amount)}</b> · {esc(v)} · {esc(where)} {tag} — '
                      f'<a href="{href(o.url)}">enlace</a>')

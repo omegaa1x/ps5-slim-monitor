@@ -9,13 +9,18 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-SOURCES = ("chollometro", "game", "mediamarkt")
+# Verified retailer sources first, community deal feeds last (cross-source dedupe prefers verified data).
+SOURCES = ("game", "elcorteingles", "hipercor", "mediamarkt", "chollometro", "blogdechollos", "ofertitas")
 
 # Default per-source polling intervals in minutes: (normal, peak).
 # On GitHub Actions the effective minimum is the trigger cadence (~5 min).
 DEFAULT_INTERVALS: dict[str, tuple[int, int]] = {
     "chollometro": (10, 2),
+    "blogdechollos": (15, 5),
+    "ofertitas": (15, 5),
     "game": (15, 3),
+    "elcorteingles": (15, 3),
+    "hipercor": (30, 10),  # mostly mirrors the El Corte Inglés catalogue
     "mediamarkt": (15, 3),
 }
 
@@ -95,7 +100,10 @@ class Settings:
     telegram_chat_id: str = ""
     user_agent: str = "Mozilla/5.0 (compatible; ps5-slim-monitor/1.0; personal price alert)"
     http_timeout_s: float = 20.0
-    game_shipping_eur: Decimal | None = None
+    shipping_overrides: dict[str, Decimal] = field(default_factory=dict)  # source -> confirmed shipping €
+
+    def shipping_for(self, source: str) -> Decimal | None:
+        return self.shipping_overrides.get(source)
 
     @property
     def tz(self) -> ZoneInfo:
@@ -159,7 +167,13 @@ class Settings:
             except ValueError as exc:
                 raise ConfigError("HEARTBEAT_LOCAL_TIME must be HH:MM or 'off'") from exc
 
-        game_ship_raw = os.environ.get("GAME_SHIPPING_EUR", "").strip()
+        overrides: dict[str, Decimal] = {}
+        for src in SOURCES:
+            raw = os.environ.get(f"SHIPPING_EUR_{src.upper()}", "").strip()
+            if not raw and src == "game":
+                raw = os.environ.get("GAME_SHIPPING_EUR", "").strip()  # backwards-compatible alias
+            if raw:
+                overrides[src] = _dec(f"SHIPPING_EUR_{src.upper()}", raw)
         return cls(
             max_total_price_eur=_dec("MAX_TOTAL_PRICE_EUR", "575.00"),
             timezone=tzname,
@@ -182,5 +196,5 @@ class Settings:
             telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", "").strip(),
             user_agent=os.environ.get("HTTP_USER_AGENT", cls.user_agent).strip() or cls.user_agent,
             http_timeout_s=float(os.environ.get("HTTP_TIMEOUT_S", "20")),
-            game_shipping_eur=_dec("GAME_SHIPPING_EUR", game_ship_raw) if game_ship_raw else None,
+            shipping_overrides=overrides,
         )

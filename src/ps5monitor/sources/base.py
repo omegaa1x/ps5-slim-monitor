@@ -145,6 +145,15 @@ def schema_condition(value: str | None) -> Condition:
         v, Condition.UNKNOWN)
 
 
+def schema_shipping(offer: dict[str, Any]) -> Any:
+    """Return the schema.org shippingRate value (None if not declared)."""
+    for sd in as_list(offer.get("shippingDetails")):
+        rate = sd.get("shippingRate") if isinstance(sd, dict) else None
+        if isinstance(rate, dict) and rate.get("value") is not None:
+            return rate.get("value")
+    return None
+
+
 def strip_tags(html: str) -> str:
     html = re.sub(r"<(script|style)\b.*?</\1>", " ", html, flags=re.S | re.I)
     text = re.sub(r"<[^>]+>", " ", html)
