@@ -1,0 +1,82 @@
+name: monitor
+
+on:
+  workflow_dispatch: {}          # primary trigger: cron-job.org every 5 min
+  schedule:
+    - cron: "*/15 * * * *"       # backup only; GitHub schedules are often delayed
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: write                # needed to persist the SQLite state on the 'state' branch
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      # ---- one-line price ceiling (inclusive). Can also be changed from Telegram with /threshold ----
+      MAX_TOTAL_PRICE_EUR: "575.00"
+      TIMEZONE: "Europe/Madrid"
+      BLACK_FRIDAY_PEAK_START: "2026-11-23T00:00:00"
+      BLACK_FRIDAY_PEAK_END_EXCLUSIVE: "2026-12-01T00:00:00"
+      SEND_UNVERIFIED_ALERTS: "true"
+      HEARTBEAT_LOCAL_TIME: "09:00"
+      DB_PATH: data/monitor.db
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install --quiet .
+
+      - name: Restore state
+        id: restore
+        run: |
+          mkdir -p data
+          set +e
+          git ls-remote --exit-code --heads origin state > /dev/null
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            git fetch --quiet --depth=1 origin state
+            git show FETCH_HEAD:monitor.db > data/monitor.db
+            echo "state restored ($(stat -c %s data/monitor.db) bytes)"
+          elif [ "$rc" -eq 2 ]; then
+            echo "no state branch yet: first run"
+          else
+            echo "::error::could not read the state branch; aborting to avoid losing alert history"
+            exit 1
+          fi
+
+      - name: Scan
+        run: python -m ps5monitor scan-once
+
+      - name: Save state
+        if: always() && steps.restore.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f data/monitor.db ] || exit 0
+          tmp=$(mktemp -d)
+          cp data/monitor.db "$tmp/"
+          cd "$tmp"
+          git init -q -b state
+          git config user.name "ps5-monitor-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add monitor.db
+          git commit -qm "state $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for i in 1 2 3; do
+            git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" state && exit 0
+            sleep $((i * 5))
+          done
+          echo "::error::could not save state"; exit 1

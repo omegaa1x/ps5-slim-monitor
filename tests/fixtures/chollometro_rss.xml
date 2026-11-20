@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:pepper="http://www.pepper.com/rss" version="2.0"><channel><title>Chollometro</title>
+<item><pepper:merchant name="Amazon" price="449,99€"/><title><![CDATA[Consola PS5 Slim Digital 1TB]]></title>
+<description><![CDATA[<strong>449,99€ - Amazon</strong><p>Vendido y enviado por Amazon, envío gratis.</p>]]></description>
+<link>https://www.chollometro.com/ofertas/ps5-slim-digital-1001?utm_source=rss</link><guid>https://www.chollometro.com/ofertas/ps5-slim-digital-1001</guid></item>
+<item><pepper:merchant name="MediaMarkt" price="699€"/><title><![CDATA[PS5 Pro 2TB]]></title><description><![CDATA[x]]></description>
+<link>https://www.chollometro.com/ofertas/ps5-pro-1002</link><guid>g1002</guid></item>
+<item><pepper:merchant name="Amazon" price="19,99€"/><title><![CDATA[Funda de silicona para PS5 Slim]]></title><description><![CDATA[x]]></description>
+<link>https://www.chollometro.com/ofertas/funda-1003</link><guid>g1003</guid></item>
+<item><pepper:merchant name="Carrefour" price="24,99€"/><title><![CDATA[PS5 Slim 1TB por 24,99€/mes]]></title><description><![CDATA[Financiación en 24 cuotas]]></description>
+<link>https://www.chollometro.com/ofertas/ps5-1004</link><guid>g1004</guid></item>
+<item><pepper:merchant name="GAME" price="299€"/><title><![CDATA[PS5 Slim 1TB a 299€ entregando tu consola antigua]]></title><description><![CDATA[Precio al entregar tu consola antigua]]></description>
+<link>https://www.chollometro.com/ofertas/ps5-1005</link><guid>g1005</guid></item>
+<item><pepper:merchant name="El Corte Inglés" price="574,99€"/><title><![CDATA[PlayStation 5 Slim Estándar 1TB]]></title><description><![CDATA[Con el cupón ELCORTE10]]></description>
+<link>https://www.chollometro.com/ofertas/ps5-slim-1006</link><guid>g1006</guid></item>
+</channel></rss>
